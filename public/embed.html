@@ -1,8 +1,63 @@
 <!DOCTYPE html>
 <html>
+  <head>
+    <meta charset="utf-8">
+    <title>Image Tracker Embed</title>
+  </head>
   <body>
     <script>
-      alert("Embed script is running");
+      (function() {
+        // URL of your Vercel serverless function
+        const TRACK_URL = "https://image-tracker-ashen.vercel.app/api/track";
+
+        // Keep track of recently tracked images to avoid double-counting instantly
+        const recentlyTracked = new Set();
+
+        // Options for IntersectionObserver (50% of image in view)
+        const observerOptions = { root: null, rootMargin: "0px", threshold: 0.5 };
+
+        // Function to send a view to your server
+        function trackImageView(imageId) {
+          if (!imageId || recentlyTracked.has(imageId)) return;
+          recentlyTracked.add(imageId);
+
+          fetch(TRACK_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ image_id: imageId })
+          }).catch(console.error);
+
+          // Allow the same image to be tracked again after 2 seconds
+          setTimeout(() => recentlyTracked.delete(imageId), 2000);
+        }
+
+        // Observe all images on the page
+        const observer = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              const img = entry.target;
+              // Use data-track-id if set, otherwise fallback to image src
+              const imgId = img.dataset.trackId || img.src;
+              trackImageView(imgId);
+            }
+          });
+        }, observerOptions);
+
+        // Attach observer to all images
+        function observeImages() {
+          const images = document.querySelectorAll("img");
+          images.forEach(img => {
+            if (!img.dataset.observed) {
+              img.dataset.observed = "true";
+              observer.observe(img);
+            }
+          });
+        }
+
+        // Start observing immediately, and check every second for new images
+        observeImages();
+        setInterval(observeImages, 1000);
+      })();
     </script>
   </body>
 </html>
